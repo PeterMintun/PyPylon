@@ -215,7 +215,8 @@ cdef class Camera:
         cdef str image_format = str(self.properties['PixelFormat'])
         cdef str bits_per_pixel_prop = str(self.properties['PixelSize'])
         assert bits_per_pixel_prop.startswith('Bpp'), 'PixelSize property should start with "Bpp"'
-        assert image_format.startswith('Mono'), 'Only mono images allowed at this point'
+        # get rid of mono image assertion
+	      # assert image_format.startswith('Mono'), 'Only mono images allowed at this point'
         assert not image_format.endswith('p'), 'Packed data not supported at this point'
 
         while self.camera.IsGrabbing():
@@ -227,7 +228,10 @@ cdef class Camera:
 
             img = &(<IImage&>ptr_grab_result)
             if not img.IsValid():
-                raise RuntimeError('Graped IImage is not valid.')
+                raise RuntimeError('Grabbed IImage is not valid.')
+
+
+
 
             if img.GetImageSize() % img.GetHeight():
                 print('This image buffer is wired. Probably you will see an error soonish.')
@@ -239,11 +243,17 @@ cdef class Camera:
             assert not img.GetPaddingX(), 'Image padding not supported.'
             # TODO: Check GetOrientation to fix oritentation of image if required.
 
-            img_data = np.frombuffer((<char*>img.GetBuffer())[:img.GetImageSize()], dtype='uint'+bits_per_pixel_prop[3:])
+            #img_data = np.frombuffer((<char*>img.GetBuffer())[:img.GetImageSize()], dtype='uint'+bits_per_pixel_prop[3:])
+
+            if image_format == 'RGB8':
+                # section for processing color image format
+                print('Attempting to process color image from {} format'.format(image_format))
+                img_data = np.frombuffer((<char*>img.GetBuffer())[:img.GetImageSize()], dtype='uint8')
+                img_data = img_data.reshape((img.GetHeight(), img.GetWidth(), 3))
+
 
             # TODO: How to handle multi-byte data here?
-            img_data = img_data.reshape((img.GetHeight(), -1))
-            # img_data = img_data[:img.GetHeight(), :img.GetWidth()]
+
             yield img_data
 
     def grab_image(self, unsigned int timeout=5000):
